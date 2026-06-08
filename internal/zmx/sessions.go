@@ -77,7 +77,7 @@ func FetchSessions() ([]Session, error) {
 
 // KillSession runs `zmx kill <name>`.
 func KillSession(name string) error {
-	out, err := runCombinedOutput("zmx", "kill", name)
+	out, err := combinedOutputWithoutSessionPrefix("zmx", "kill", name)
 	if err != nil {
 		return fmt.Errorf("zmx kill %s: %w\n%s", name, err, out)
 	}

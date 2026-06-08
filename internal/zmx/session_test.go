@@ -1,6 +1,7 @@
 package zmx
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 	"testing"
@@ -185,6 +186,34 @@ func TestFetchSessionsParsesNewZmxListKeys(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Name != "demo" || got[0].PID != "123" || got[0].Clients != 2 || got[0].StartedIn != "/tmp" {
 		t.Fatalf("unexpected sessions parsed: %+v", got)
+	}
+}
+
+func TestFetchPreviewIgnoresSessionPrefix(t *testing.T) {
+	orig := deps
+	defer func() { deps = orig }()
+	t.Setenv("ZMX_SESSION_PREFIX", "prefix.")
+
+	deps.commandContext = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "sh", "-c", "printf '%s' \"${ZMX_SESSION_PREFIX-unset}\"")
+	}
+
+	if got := FetchPreview("prefix.demo", 1); got != "unset" {
+		t.Fatalf("FetchPreview env prefix = %q, want unset", got)
+	}
+}
+
+func TestKillSessionIgnoresSessionPrefix(t *testing.T) {
+	orig := deps
+	defer func() { deps = orig }()
+	t.Setenv("ZMX_SESSION_PREFIX", "prefix.")
+
+	deps.command = func(name string, arg ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "test -z \"${ZMX_SESSION_PREFIX-}\"")
+	}
+
+	if err := KillSession("prefix.demo"); err != nil {
+		t.Fatalf("KillSession error: %v", err)
 	}
 }
 

@@ -2,6 +2,7 @@ package zmx
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -22,12 +23,13 @@ func FetchPreview(name string, lines int) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	cmd := deps.commandContext(ctx, "zmx", "history", name, "--vt")
+	cmd := commandWithoutSessionPrefix(ctx, "zmx", "history", name, "--vt")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Sprintf("(preview unavailable: %v)", err)
 	}
-	cmd.Stderr = io.Discard
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
 		return fmt.Sprintf("(preview unavailable: %v)", err)
 	}
@@ -41,7 +43,15 @@ func FetchPreview(name string, lines int) string {
 		return fmt.Sprintf("(preview unavailable: %v)", readErr)
 	}
 	if waitErr != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return fmt.Sprintf("(preview unavailable: %v: %s)", waitErr, msg)
+		}
 		return fmt.Sprintf("(preview unavailable: %v)", waitErr)
+	}
+	if preview == "" {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return fmt.Sprintf("(preview unavailable: %s)", msg)
+		}
 	}
 	return preview
 }
