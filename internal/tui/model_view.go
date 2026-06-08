@@ -7,8 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/khangkontum/zmx-session-manager/internal/zmx"
 	"github.com/mattn/go-runewidth"
-	"github.com/mdsakalu/zmx-session-manager/internal/zmx"
 )
 
 func previewMaxWidth(raw string) int {

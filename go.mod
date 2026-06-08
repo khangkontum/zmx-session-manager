@@ -1,4 +1,4 @@
-module github.com/mdsakalu/zmx-session-manager
+module github.com/khangkontum/zmx-session-manager
 
 go 1.25.5
 

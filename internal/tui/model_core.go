@@ -10,8 +10,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/khangkontum/zmx-session-manager/internal/zmx"
 	"github.com/mattn/go-runewidth"
-	"github.com/mdsakalu/zmx-session-manager/internal/zmx"
 )
 
 const (

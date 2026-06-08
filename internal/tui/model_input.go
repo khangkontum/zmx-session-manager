@@ -5,7 +5,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/mdsakalu/zmx-session-manager/internal/zmx"
+	"github.com/khangkontum/zmx-session-manager/internal/zmx"
 )
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

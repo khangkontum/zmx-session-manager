@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/mdsakalu/zmx-session-manager/internal/tui"
+	"github.com/khangkontum/zmx-session-manager/internal/tui"
 )
 
 var (
