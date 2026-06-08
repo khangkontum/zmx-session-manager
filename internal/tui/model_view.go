@@ -162,7 +162,11 @@ func (m Model) View() tea.View {
 	logPane = replaceTopBorder(logPane, buildTopBorder(logTitle, m.width))
 
 	full := lipgloss.JoinVertical(lipgloss.Left, body, logPane, help)
-	v := tea.NewView(clampLines(full, m.height))
+	full = clampLines(full, m.height)
+	if m.showHelp {
+		full = overlayCentered(full, m.renderHelpModal(), m.width, m.height)
+	}
+	v := tea.NewView(full)
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
@@ -297,30 +301,58 @@ func (m Model) renderHelp() string {
 	}
 
 	parts := []string{
-		helpKeyStyle.Render("←→") + helpStyle.Render(" scroll"),
-		helpKeyStyle.Render("↑↓") + helpStyle.Render(" nav"),
-		helpKeyStyle.Render("space") + helpStyle.Render(" sel"),
-		helpKeyStyle.Render("^a") + helpStyle.Render(" all"),
+		helpKeyStyle.Render("↑↓/jk") + helpStyle.Render(" nav"),
 		helpKeyStyle.Render("enter") + helpStyle.Render(" attach"),
-		helpKeyStyle.Render("k") + helpStyle.Render(" kill"),
-		helpKeyStyle.Render("c") + helpStyle.Render(" copy cmd"),
-		helpKeyStyle.Render("s") + helpStyle.Render(" sort"),
+		helpKeyStyle.Render("[]") + helpStyle.Render(" preview"),
+		helpKeyStyle.Render("?") + helpStyle.Render(" help"),
+		helpKeyStyle.Render("q") + helpStyle.Render(" quit"),
 	}
 	if m.filterText != "" {
 		parts = append(parts, helpKeyStyle.Render("esc")+helpStyle.Render(" clear"))
-	} else {
-		parts = append(parts, helpKeyStyle.Render("/")+helpStyle.Render(" filter"))
 	}
-	parts = append(parts,
-		helpKeyStyle.Render("[]")+helpStyle.Render(" preview"),
-		helpKeyStyle.Render("q")+helpStyle.Render(" quit"),
-	)
 
 	if m.status != "" {
 		parts = append(parts, statusStyle.Render(m.status))
 	}
 
 	return wrapHelpParts(parts, m.width)
+}
+
+func (m Model) renderHelpModal() string {
+	rows := []struct {
+		key    string
+		action string
+	}{
+		{"↑ ↓ / j k", "Navigate sessions"},
+		{"← →", "Scroll preview horizontally"},
+		{"[ ]", "Scroll preview vertically"},
+		{"{ }", "Jump preview to top / bottom"},
+		{"space", "Toggle selection"},
+		{"ctrl+a", "Select / deselect all"},
+		{"enter", "Attach to session"},
+		{"x", "Kill selected session(s)"},
+		{"c", "Copy attach command"},
+		{"s", "Cycle sort mode"},
+		{"/", "Filter sessions"},
+		{"r", "Refresh sessions"},
+		{"? / esc", "Close help"},
+		{"q", "Quit"},
+	}
+
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("Keyboard shortcuts"))
+	b.WriteString("\n\n")
+	for i, row := range rows {
+		b.WriteString(helpKeyStyle.Render(padRight(row.key, 10)))
+		b.WriteString("  ")
+		b.WriteString(normalStyle.Render(row.action))
+		if i < len(rows)-1 {
+			b.WriteString("\n")
+		}
+	}
+
+	w := min(52, max(28, m.width-6))
+	return helpModalStyle.Width(w).Render(b.String())
 }
 
 // wrapHelpParts joins help items with wrapping at maxWidth.
@@ -450,6 +482,18 @@ func clampLines(s string, maxLines int) string {
 		return s
 	}
 	return strings.Join(lines[:maxLines], "\n")
+}
+
+func overlayCentered(base, modal string, width, height int) string {
+	if width <= 0 || height <= 0 {
+		return base
+	}
+	x := max(0, (width-lipgloss.Width(modal))/2)
+	y := max(0, (height-lipgloss.Height(modal))/2)
+	return lipgloss.NewCompositor(
+		lipgloss.NewLayer(base),
+		lipgloss.NewLayer(modal).X(x).Y(y),
+	).Render()
 }
 
 func renderPreviewContent(raw string, offsetY, height, offsetX, width int) string {

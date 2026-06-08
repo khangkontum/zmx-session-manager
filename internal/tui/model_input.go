@@ -17,6 +17,11 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
+	if isRune(msg, "?") {
+		m.showHelp = true
+		return m, nil
+	}
+
 	if m.handlePreviewJump(msg) {
 		return m, nil
 	}
@@ -45,22 +50,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.Code {
 	case tea.KeyUp:
-		if m.cursor > 0 {
-			m.cursor--
-			m.previewScrollX = 0
-			m.previewScrollY = 0
-			m.ensureVisible()
-			return m, m.previewCmd()
-		}
+		return m.moveCursor(-1)
 
 	case tea.KeyDown:
-		if m.cursor < len(visible)-1 {
-			m.cursor++
-			m.previewScrollX = 0
-			m.previewScrollY = 0
-			m.ensureVisible()
-			return m, m.previewCmd()
-		}
+		return m.moveCursor(1)
 
 	case tea.KeyLeft:
 		if m.previewScrollX > 0 {
@@ -92,7 +85,11 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	default:
 		if msg.Text != "" {
 			switch msg.Text {
+			case "j":
+				return m.moveCursor(1)
 			case "k":
+				return m.moveCursor(-1)
+			case "x":
 				targets := m.killTargets()
 				if len(targets) > 0 {
 					m.state = stateConfirmKill
@@ -131,6 +128,26 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.Code == tea.KeyEscape || msg.Code == tea.KeyEnter || isRune(msg, "?") || isRune(msg, "q") {
+		m.showHelp = false
+	}
+	return m, nil
+}
+
+func (m Model) moveCursor(delta int) (tea.Model, tea.Cmd) {
+	visible := m.visibleSessions()
+	next := m.cursor + delta
+	if next < 0 || next >= len(visible) {
+		return m, nil
+	}
+	m.cursor = next
+	m.previewScrollX = 0
+	m.previewScrollY = 0
+	m.ensureVisible()
+	return m, m.previewCmd()
 }
 
 func (m *Model) toggleSelectAll(visible []Session) {
@@ -333,6 +350,31 @@ func (m *Model) handlePreviewWheel(msg tea.MouseWheelMsg) bool {
 	return true
 }
 
+func (m *Model) handleSessionClick(msg tea.MouseClickMsg) (bool, tea.Cmd) {
+	mouse := msg.Mouse()
+	if mouse.Button != tea.MouseLeft || !m.isInListPane(mouse.X, mouse.Y) {
+		return false, nil
+	}
+
+	row := mouse.Y - 1
+	if row < 0 {
+		return false, nil
+	}
+	visible := m.visibleSessions()
+	idx := m.listOffset + row
+	if idx < 0 || idx >= len(visible) {
+		return false, nil
+	}
+	if idx == m.cursor {
+		return true, nil
+	}
+	m.cursor = idx
+	m.previewScrollX = 0
+	m.previewScrollY = 0
+	m.ensureVisible()
+	return true, m.previewCmd()
+}
+
 func isPreviewScrollKey(msg tea.KeyPressMsg, key string) bool {
 	if isRune(msg, key) {
 		return true
@@ -341,6 +383,10 @@ func isPreviewScrollKey(msg tea.KeyPressMsg, key string) bool {
 		return msg.Code == rune(key[0])
 	}
 	return false
+}
+
+func (m *Model) isInListPane(x, y int) bool {
+	return x >= 0 && x < m.listOuterWidth() && y > 0 && y < m.previewContentHeight()+1
 }
 
 func (m *Model) isInPreviewPane(x, y int) bool {

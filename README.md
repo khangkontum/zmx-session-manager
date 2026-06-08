@@ -48,18 +48,21 @@ This fork tracks compatibility with newer `zmx` releases:
 
 ## Key Bindings
 
+Press `?` in the app to open the keyboard shortcut help popup.
+
 | Key | Action |
 |-----|--------|
-| `↑` `↓` | Navigate sessions |
+| `↑` `↓` / `j` `k` | Navigate sessions |
 | `space` | Toggle selection |
 | `ctrl+a` | Select / deselect all |
 | `enter` | Attach to session |
-| `k` | Kill selected session(s) |
+| `x` | Kill selected session(s) |
 | `c` | Copy attach command |
 | `s` | Cycle sort mode (name / clients / newest) |
 | `/` | Filter sessions |
 | `[` `]` | Scroll preview |
 | `{` `}` | Jump preview to top / bottom |
+| `?` | Show / hide help popup |
 | `q` | Quit |
 
 ## License

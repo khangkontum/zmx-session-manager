@@ -82,4 +82,9 @@ var (
 	sortStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("75")).
 			Bold(true)
+
+	helpModalStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("99")).
+			Padding(1, 2)
 )

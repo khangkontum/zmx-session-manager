@@ -161,6 +161,7 @@ type Model struct {
 	previewScrollY int
 	state          state
 	status         string
+	showHelp       bool
 
 	// Kill tracking
 	killQueue     []string
@@ -476,6 +477,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = ""
 
 	case tea.KeyPressMsg:
+		if m.showHelp {
+			return m.handleHelpKey(msg)
+		}
 		if m.state == stateKilling {
 			if isQuit(msg) {
 				return m, tea.Quit
@@ -487,6 +491,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleFilterKey(msg)
 		}
 		return m.handleKey(msg)
+
+	case tea.MouseClickMsg:
+		if m.showHelp {
+			return m, nil
+		}
+		if handled, cmd := m.handleSessionClick(msg); handled {
+			return m, cmd
+		}
 
 	case tea.MouseWheelMsg:
 		if m.handlePreviewWheel(msg) {

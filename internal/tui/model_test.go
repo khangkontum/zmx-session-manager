@@ -234,6 +234,36 @@ func TestPreviewMouseWheelScrollsOnlyInsidePreviewPane(t *testing.T) {
 	}
 }
 
+func TestMouseClickSelectsSessionRow(t *testing.T) {
+	m := initialModel()
+	m.width = 120
+	m.height = 20
+	m.sessions = []Session{{Name: "alpha"}, {Name: "beta"}, {Name: "gamma"}}
+	m.markSessionsChanged()
+
+	click := tea.MouseClickMsg(tea.Mouse{X: 2, Y: 2, Button: tea.MouseLeft})
+	updated, _ := m.Update(click)
+	got := updated.(Model)
+	if got.cursor != 1 {
+		t.Fatalf("cursor after row click = %d, want 1", got.cursor)
+	}
+}
+
+func TestMouseClickOutsideListDoesNotSelectSessionRow(t *testing.T) {
+	m := initialModel()
+	m.width = 120
+	m.height = 20
+	m.sessions = []Session{{Name: "alpha"}, {Name: "beta"}}
+	m.markSessionsChanged()
+
+	click := tea.MouseClickMsg(tea.Mouse{X: m.listOuterWidth() + 1, Y: 2, Button: tea.MouseLeft})
+	updated, _ := m.Update(click)
+	got := updated.(Model)
+	if got.cursor != 0 {
+		t.Fatalf("cursor changed after outside click = %d, want 0", got.cursor)
+	}
+}
+
 func TestViewEnablesMouseMode(t *testing.T) {
 	m := initialModel()
 	m.width = 80
@@ -241,6 +271,77 @@ func TestViewEnablesMouseMode(t *testing.T) {
 	view := m.View()
 	if view.MouseMode != tea.MouseModeCellMotion {
 		t.Fatalf("MouseMode = %v, want MouseModeCellMotion", view.MouseMode)
+	}
+}
+
+func TestHelpModalOpensAndCloses(t *testing.T) {
+	m := initialModel()
+	updated, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Text: "?", Code: '?'}))
+	got := updated.(Model)
+	if !got.showHelp {
+		t.Fatalf("? should open help modal")
+	}
+
+	updated, _ = got.handleHelpKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+	got = updated.(Model)
+	if got.showHelp {
+		t.Fatalf("escape should close help modal")
+	}
+}
+
+func TestRenderHelpUsesCompactFooter(t *testing.T) {
+	m := initialModel()
+	m.width = 120
+	help := stripStyleCodes(m.renderHelp())
+	if strings.Contains(help, "space") || strings.Contains(help, "copy cmd") {
+		t.Fatalf("footer should stay compact, got %q", help)
+	}
+	if !strings.Contains(help, "? help") {
+		t.Fatalf("footer should advertise help modal, got %q", help)
+	}
+}
+
+func TestRenderHelpModalContainsShortcuts(t *testing.T) {
+	m := initialModel()
+	m.width = 100
+	modal := stripStyleCodes(m.renderHelpModal())
+	for _, want := range []string{"Keyboard shortcuts", "↑ ↓ / j k", "space", "x", "Copy attach command", "? / esc"} {
+		if !strings.Contains(modal, want) {
+			t.Fatalf("help modal missing %q: %q", want, modal)
+		}
+	}
+}
+
+func TestOverlayCenteredPreservesBackground(t *testing.T) {
+	got := overlayCentered("aaaa\nbbbb\ncccc", "XX\nYY", 4, 3)
+	if plain := stripStyleCodes(got); plain != "aXXa\nbYYb\ncccc" {
+		t.Fatalf("overlayCentered = %q, want background preserved", plain)
+	}
+}
+
+func TestJKNavigateSessionsAndXStartsKill(t *testing.T) {
+	m := initialModel()
+	m.width = 120
+	m.height = 20
+	m.sessions = []Session{{Name: "alpha"}, {Name: "beta"}}
+	m.markSessionsChanged()
+
+	updated, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Text: "j", Code: 'j'}))
+	got := updated.(Model)
+	if got.cursor != 1 {
+		t.Fatalf("cursor after j = %d, want 1", got.cursor)
+	}
+
+	updated, _ = got.handleKey(tea.KeyPressMsg(tea.Key{Text: "k", Code: 'k'}))
+	got = updated.(Model)
+	if got.cursor != 0 || got.state == stateConfirmKill {
+		t.Fatalf("k should navigate up without kill confirmation, cursor=%d state=%v", got.cursor, got.state)
+	}
+
+	updated, _ = got.handleKey(tea.KeyPressMsg(tea.Key{Text: "x", Code: 'x'}))
+	got = updated.(Model)
+	if got.state != stateConfirmKill {
+		t.Fatalf("x should start kill confirmation, state=%v", got.state)
 	}
 }
 
