@@ -22,7 +22,7 @@ TUI session manager for [zmx](https://github.com/neurosnap/zmx)
 ## Install
 
 ```
-go install github.com/khangkontum/zmx-session-manager@latest
+go install github.com/khangkontum/zmx-session-manager/cmd/zsm@latest
 ```
 
 ## Requirements

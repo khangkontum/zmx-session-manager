@@ -6,6 +6,7 @@ before:
 
 builds:
   - binary: zsm
+    main: ./cmd/zsm
     env:
       - CGO_ENABLED=0
     goos:

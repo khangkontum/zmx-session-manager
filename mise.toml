@@ -3,11 +3,11 @@ go = "1.25"
 
 [tasks.build]
 description = "Build zsm binary"
-run = "go build -o zsm ."
+run = "go build -o zsm ./cmd/zsm"
 
 [tasks.install]
 description = "Install zsm to $GOPATH/bin"
-run = "go install ."
+run = "go install ./cmd/zsm"
 
 [tasks.fmt]
 description = "Format code"
