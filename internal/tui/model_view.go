@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 	"github.com/mdsakalu/zmx-session-manager/internal/zmx"
 )
@@ -13,7 +14,7 @@ import (
 func previewMaxWidth(raw string) int {
 	maxW := 0
 	for _, line := range strings.Split(raw, "\n") {
-		if w := runewidth.StringWidth(line); w > maxW {
+		if w := ansi.StringWidth(line); w > maxW {
 			maxW = w
 		}
 	}
@@ -113,6 +114,8 @@ func (m Model) View() tea.View {
 	listPane := listBorderStyle.
 		Width(low).
 		Height(ch + 2).
+		MaxWidth(low).
+		MaxHeight(ch + 2).
 		Render(listContent)
 	listPane = replaceTopBorder(listPane, buildTopBorderLRStyled(listTitleLeft, listTitleRight, low, sortStyle))
 	if selCount := len(m.selected); selCount > 0 {
@@ -122,7 +125,7 @@ func (m Model) View() tea.View {
 
 	// --- Preview pane ---
 	pw := m.previewInnerWidth()
-	previewContent := clampLines(zmx.ScrollPreview(m.preview, m.previewScrollX, pw), ch)
+	previewContent := renderPreviewContent(m.preview, m.previewScrollY, ch, m.previewScrollX, pw)
 	previewTitleLeft := " Preview "
 	previewTitleRight := ""
 	if m.cursor < len(visible) {
@@ -135,6 +138,8 @@ func (m Model) View() tea.View {
 	previewPane := previewBorderStyle.
 		Width(pow).
 		Height(ch + 2).
+		MaxWidth(pow).
+		MaxHeight(ch + 2).
 		Render(previewContent)
 	previewPane = replaceTopBorder(previewPane, buildTopBorderLR(previewTitleLeft, previewTitleRight, pow))
 
@@ -146,6 +151,8 @@ func (m Model) View() tea.View {
 	logPane := logBorderStyle.
 		Width(m.width).
 		Height(logContentHeight + 2).
+		MaxWidth(m.width).
+		MaxHeight(logContentHeight + 2).
 		Render(logContent)
 
 	logTitle := " Activity Log "
@@ -157,6 +164,7 @@ func (m Model) View() tea.View {
 	full := lipgloss.JoinVertical(lipgloss.Left, body, logPane, help)
 	v := tea.NewView(clampLines(full, m.height))
 	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 
@@ -304,7 +312,7 @@ func (m Model) renderHelp() string {
 		parts = append(parts, helpKeyStyle.Render("/")+helpStyle.Render(" filter"))
 	}
 	parts = append(parts,
-		helpKeyStyle.Render("[]")+helpStyle.Render(" log"),
+		helpKeyStyle.Render("[]")+helpStyle.Render(" preview"),
 		helpKeyStyle.Render("q")+helpStyle.Render(" quit"),
 	)
 
@@ -442,6 +450,28 @@ func clampLines(s string, maxLines int) string {
 		return s
 	}
 	return strings.Join(lines[:maxLines], "\n")
+}
+
+func renderPreviewContent(raw string, offsetY, height, offsetX, width int) string {
+	if height <= 0 || width <= 0 {
+		return ""
+	}
+	lines := strings.Split(raw, "\n")
+	maxOffset := len(lines) - height
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if offsetY > maxOffset {
+		offsetY = maxOffset
+	}
+	if offsetY < 0 {
+		offsetY = 0
+	}
+	end := offsetY + height
+	if end > len(lines) {
+		end = len(lines)
+	}
+	return zmx.ScrollPreview(strings.Join(lines[offsetY:end], "\n"), offsetX, width)
 }
 
 func truncate(s string, maxLen int) string {

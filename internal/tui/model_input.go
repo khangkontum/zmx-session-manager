@@ -17,7 +17,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	m.handleLogScroll(msg)
+	if m.handlePreviewJump(msg) {
+		return m, nil
+	}
+
+	if m.handlePreviewScroll(msg) {
+		return m, nil
+	}
 
 	// Escape or Backspace clears active filter in normal mode
 	if (msg.Code == tea.KeyEscape || msg.Code == tea.KeyBackspace) && m.filterText != "" {
@@ -25,6 +31,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.markVisibleChanged()
 		m.cursor = 0
 		m.listOffset = 0
+		m.previewScrollY = 0
 		return m, m.previewCmd()
 	}
 
@@ -41,6 +48,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.cursor > 0 {
 			m.cursor--
 			m.previewScrollX = 0
+			m.previewScrollY = 0
 			m.ensureVisible()
 			return m, m.previewCmd()
 		}
@@ -49,6 +57,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.cursor < len(visible)-1 {
 			m.cursor++
 			m.previewScrollX = 0
+			m.previewScrollY = 0
 			m.ensureVisible()
 			return m, m.previewCmd()
 		}
@@ -62,16 +71,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyRight:
-		maxW := previewMaxWidth(m.preview)
-		limit := maxW - m.previewInnerWidth()
-		if limit < 0 {
-			limit = 0
-		}
-		if m.previewScrollX+4 <= limit {
-			m.previewScrollX += 4
-		} else {
-			m.previewScrollX = limit
-		}
+		m.scrollPreviewRight(4)
 
 	case tea.KeySpace:
 		if m.cursor < len(visible) {
@@ -124,6 +124,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.markVisibleChanged()
 				m.cursor = 0
 				m.listOffset = 0
+				m.previewScrollY = 0
 				return m, m.previewCmd()
 			}
 		}
@@ -180,6 +181,7 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.state = stateNormal
 		m.cursor = 0
 		m.listOffset = 0
+		m.previewScrollY = 0
 		return m, m.previewCmd()
 
 	case tea.KeyEnter:
@@ -194,6 +196,7 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.pruneSelections()
 			m.cursor = 0
 			m.listOffset = 0
+			m.previewScrollY = 0
 		} else {
 			// Backspace on empty filter exits filter mode
 			m.state = stateNormal
@@ -203,6 +206,7 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyUp:
 		if m.cursor > 0 {
 			m.cursor--
+			m.previewScrollY = 0
 			m.ensureVisible()
 			return m, m.previewCmd()
 		}
@@ -211,6 +215,7 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		visible := m.visibleSessions()
 		if m.cursor < len(visible)-1 {
 			m.cursor++
+			m.previewScrollY = 0
 			m.ensureVisible()
 			return m, m.previewCmd()
 		}
@@ -222,6 +227,7 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.pruneSelections()
 			m.cursor = 0
 			m.listOffset = 0
+			m.previewScrollY = 0
 		}
 	}
 
@@ -269,6 +275,88 @@ func (m *Model) handleLogScroll(msg tea.KeyPressMsg) {
 	}
 	if isRune(msg, "]") && m.logOffset < maxOffset {
 		m.logOffset++
+	}
+}
+
+func (m *Model) handlePreviewScroll(msg tea.KeyPressMsg) bool {
+	if !isPreviewScrollKey(msg, "[") && !isPreviewScrollKey(msg, "]") {
+		return false
+	}
+
+	if isPreviewScrollKey(msg, "[") && m.previewScrollY > 0 {
+		m.previewScrollY--
+	}
+	if isPreviewScrollKey(msg, "]") {
+		m.previewScrollY++
+		m.clampPreviewScroll()
+	}
+	return true
+}
+
+func (m *Model) handlePreviewJump(msg tea.KeyPressMsg) bool {
+	switch msg.Text {
+	case "{":
+		m.previewScrollY = 0
+		return true
+	case "}":
+		m.scrollPreviewBottom()
+		return true
+	}
+	return false
+}
+
+func (m *Model) handlePreviewWheel(msg tea.MouseWheelMsg) bool {
+	mouse := msg.Mouse()
+	if !m.isInPreviewPane(mouse.X, mouse.Y) {
+		return false
+	}
+
+	switch mouse.Button {
+	case tea.MouseWheelUp:
+		m.previewScrollY -= previewWheelScrollLines
+		m.clampPreviewScroll()
+	case tea.MouseWheelDown:
+		m.previewScrollY += previewWheelScrollLines
+		m.clampPreviewScroll()
+	case tea.MouseWheelLeft:
+		if m.previewScrollX > 0 {
+			m.previewScrollX -= 4
+			if m.previewScrollX < 0 {
+				m.previewScrollX = 0
+			}
+		}
+	case tea.MouseWheelRight:
+		m.scrollPreviewRight(4)
+	default:
+		return false
+	}
+	return true
+}
+
+func isPreviewScrollKey(msg tea.KeyPressMsg, key string) bool {
+	if isRune(msg, key) {
+		return true
+	}
+	if len(key) == 1 {
+		return msg.Code == rune(key[0])
+	}
+	return false
+}
+
+func (m *Model) isInPreviewPane(x, y int) bool {
+	return x >= m.listOuterWidth() && x < m.width && y >= 0 && y < m.previewContentHeight()+2
+}
+
+func (m *Model) scrollPreviewRight(delta int) {
+	maxW := previewMaxWidth(m.preview)
+	limit := maxW - m.previewInnerWidth()
+	if limit < 0 {
+		limit = 0
+	}
+	if m.previewScrollX+delta <= limit {
+		m.previewScrollX += delta
+	} else {
+		m.previewScrollX = limit
 	}
 }
 

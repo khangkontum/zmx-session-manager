@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	listMaxOuterWidth = 56
-	logContentHeight  = 4
+	listMaxOuterWidth       = 56
+	logContentHeight        = 4
+	previewFetchLines       = 1000
+	previewWheelScrollLines = 1
 )
 
 type state int
@@ -156,6 +158,7 @@ type Model struct {
 
 	preview        string
 	previewScrollX int
+	previewScrollY int
 	state          state
 	status         string
 
@@ -348,6 +351,37 @@ func (m *Model) clampCursor() {
 	}
 }
 
+func (m Model) previewContentHeight() int {
+	help := m.renderHelp()
+	return m.mainContentHeight(strings.Count(help, "\n") + 1)
+}
+
+func (m *Model) clampPreviewScroll() {
+	maxOffset := m.previewMaxScrollY()
+	if m.previewScrollY > maxOffset {
+		m.previewScrollY = maxOffset
+	}
+	if m.previewScrollY < 0 {
+		m.previewScrollY = 0
+	}
+}
+
+func (m Model) previewMaxScrollY() int {
+	lines := 0
+	if m.preview != "" {
+		lines = strings.Count(m.preview, "\n") + 1
+	}
+	maxOffset := lines - m.previewContentHeight()
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	return maxOffset
+}
+
+func (m *Model) scrollPreviewBottom() {
+	m.previewScrollY = m.previewMaxScrollY()
+}
+
 func (m Model) Init() tea.Cmd {
 	return fetchSessionsCmd
 }
@@ -358,6 +392,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.clampPreviewScroll()
 		visible := m.visibleSessions()
 		if m.state != stateKilling && m.cursor < len(visible) {
 			return m, m.previewCmd()
@@ -386,6 +421,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.previewCmd())
 		} else {
 			m.preview = ""
+			m.previewScrollY = 0
 		}
 		return m, tea.Batch(cmds...)
 
@@ -406,6 +442,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		visible := m.visibleSessions()
 		if m.cursor < len(visible) && visible[m.cursor].Name == msg.name {
 			m.preview = msg.content
+			m.scrollPreviewBottom()
 		}
 
 	case killOneResultMsg:
@@ -450,6 +487,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleFilterKey(msg)
 		}
 		return m.handleKey(msg)
+
+	case tea.MouseWheelMsg:
+		if m.handlePreviewWheel(msg) {
+			return m, nil
+		}
 	}
 
 	return m, nil
@@ -475,7 +517,7 @@ func (m *Model) previewCmd() tea.Cmd {
 	if m.cursor >= len(visible) {
 		return nil
 	}
-	return fetchPreviewCmd(visible[m.cursor].Name, m.mainContentHeight(1))
+	return fetchPreviewCmd(visible[m.cursor].Name, previewFetchLines)
 }
 
 func (m *Model) killTargets() []string {

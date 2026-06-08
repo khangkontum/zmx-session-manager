@@ -153,6 +153,27 @@ func TestTailLinesFromReader_AtLeastOneLine(t *testing.T) {
 	}
 }
 
+func TestTailLinesFromReaderPreservesSGRColors(t *testing.T) {
+	input := "\x1b[31mred\x1b[0m\nplain\n"
+	got, err := tailLinesFromReader(strings.NewReader(input), 2)
+	if err != nil {
+		t.Fatalf("tailLinesFromReader error: %v", err)
+	}
+	if !strings.Contains(got, "\x1b[31mred\x1b[0m") {
+		t.Fatalf("tailLinesFromReader should preserve SGR colors, got %q", got)
+	}
+}
+
+func TestScrollPreviewPreservesANSIWidth(t *testing.T) {
+	got := ScrollPreview("\x1b[31mred-blue\x1b[0m", 4, 4)
+	if !strings.Contains(got, "\x1b[31m") {
+		t.Fatalf("ScrollPreview should preserve color, got %q", got)
+	}
+	if plain := strings.TrimSpace(stripANSIForTest(got)); plain != "blue" {
+		t.Fatalf("ScrollPreview visible text = %q, want blue", plain)
+	}
+}
+
 func TestFetchSessionsWithInjectedDeps(t *testing.T) {
 	orig := deps
 	defer func() { deps = orig }()
@@ -169,6 +190,10 @@ func TestFetchSessionsWithInjectedDeps(t *testing.T) {
 	if len(got) != 1 || got[0].Name != "demo" || got[0].PID != "123" || got[0].Clients != 2 {
 		t.Fatalf("unexpected sessions parsed: %+v", got)
 	}
+}
+
+func stripANSIForTest(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(s, "\x1b[31m", ""), "\x1b[0m", ""), "\x1b[m", "")
 }
 
 func TestFetchSessionsParsesNewZmxListKeys(t *testing.T) {

@@ -9,12 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattn/go-runewidth"
+	"github.com/charmbracelet/x/ansi"
 )
 
-// FetchPreview returns the last `lines` lines of `zmx history <name> --vt`,
-// with all ANSI escape sequences stripped. Lines are NOT truncated so that
-// the caller can apply horizontal scrolling before display.
+// FetchPreview returns the last `lines` lines of `zmx history <name> --vt`.
+// SGR color sequences are preserved so the preview matches the source session.
 func FetchPreview(name string, lines int) string {
 	if lines < 1 {
 		lines = 1
@@ -62,7 +61,7 @@ func tailLinesFromReader(r io.Reader, lines int) (string, error) {
 
 	tail := make([]string, 0, lines)
 	for scanner.Scan() {
-		tail = append(tail, stripANSI(scanner.Text()))
+		tail = append(tail, preserveSGR(scanner.Text()))
 		if len(tail) > lines {
 			tail = tail[1:]
 		}
@@ -78,29 +77,26 @@ func tailLinesFromReader(r io.Reader, lines int) (string, error) {
 func ScrollPreview(raw string, offsetX, maxWidth int) string {
 	lines := strings.Split(raw, "\n")
 	for i, line := range lines {
-		// Skip offsetX cells from the left
-		skipped := 0
-		runeIdx := 0
-		runes := []rune(line)
-		for runeIdx < len(runes) && skipped < offsetX {
-			w := runewidth.RuneWidth(runes[runeIdx])
-			skipped += w
-			runeIdx++
+		line = strings.ReplaceAll(line, "\t", "    ")
+		if offsetX > 0 {
+			line = ansi.Cut(line, offsetX, ansi.StringWidth(line))
 		}
-		rest := string(runes[runeIdx:])
-		lines[i] = runewidth.FillRight(runewidth.Truncate(rest, maxWidth, ""), maxWidth)
+		line = ansi.Truncate(line, maxWidth, "")
+		if w := ansi.StringWidth(line); w < maxWidth {
+			line += strings.Repeat(" ", maxWidth-w)
+		}
+		lines[i] = line + ansi.ResetStyle
 	}
 	return strings.Join(lines, "\n")
 }
 
-// stripANSI removes all ANSI escape sequences and non-printable control
-// characters (except newline and tab) from s.
-func stripANSI(s string) string {
+func preserveSGR(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	i := 0
 	for i < len(s) {
 		if s[i] == '\x1b' {
+			start := i
 			i++
 			if i >= len(s) {
 				break
@@ -112,7 +108,11 @@ func stripANSI(s string) string {
 					i++
 				}
 				if i < len(s) {
-					i++ // skip final byte
+					final := s[i]
+					i++
+					if final == 'm' {
+						b.WriteString(s[start:i])
+					}
 				}
 			case ']': // OSC sequence: ESC ] ... (BEL or ST)
 				i++

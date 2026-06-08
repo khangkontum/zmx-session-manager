@@ -2,7 +2,7 @@
 
 # zsm
 
-> This fork keeps zsm working with newer zmx releases whose `zmx list` output changed from `session_name`/`started_in` to `name`/`start_dir`.
+> This fork keeps zsm working with newer zmx releases. See [About this fork](#about-this-fork) for compatibility and preview-rendering notes.
 
 TUI session manager for [zmx](https://github.com/neurosnap/zmx)
 
@@ -38,6 +38,14 @@ go install github.com/mdsakalu/zmx-session-manager@latest
 
 [zmx](https://github.com/neurosnap/zmx) must be installed and available in your `PATH`.
 
+## About this fork
+
+This fork tracks compatibility with newer `zmx` releases:
+
+- Parses the newer `zmx list` keys (`name`, `start_dir`) while preserving support for the older keys (`session_name`, `started_in`).
+- Avoids double-applying `ZMX_SESSION_PREFIX` when opening preview history, attaching, or killing sessions returned by `zmx list`.
+- Renders preview history from `zmx history --vt` with [Bubble Tea](https://github.com/charmbracelet/bubbletea), [Lip Gloss](https://github.com/charmbracelet/lipgloss), and [Charm ANSI](https://github.com/charmbracelet/x/tree/main/ansi) helpers so ANSI colors are preserved and preview scrolling/cropping stays terminal-width aware.
+
 ## Key Bindings
 
 | Key | Action |
@@ -50,7 +58,8 @@ go install github.com/mdsakalu/zmx-session-manager@latest
 | `c` | Copy attach command |
 | `s` | Cycle sort mode (name / clients / newest) |
 | `/` | Filter sessions |
-| `[` `]` | Scroll activity log |
+| `[` `]` | Scroll preview |
+| `{` `}` | Jump preview to top / bottom |
 | `q` | Quit |
 
 ## License

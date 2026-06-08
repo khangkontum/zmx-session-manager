@@ -138,6 +138,112 @@ func TestPreviewMsgAppliesForCurrentSessionDuringResize(t *testing.T) {
 	}
 }
 
+func TestPreviewMsgDefaultsToBottom(t *testing.T) {
+	m := initialModel()
+	m.width = 120
+	m.height = 12
+	m.sessions = []Session{{Name: "alpha"}}
+	m.markSessionsChanged()
+
+	updated, _ := m.Update(previewMsg{name: "alpha", content: "one\ntwo\nthree\nfour\nfive"})
+	got := updated.(Model)
+	if got.previewScrollY != got.previewMaxScrollY() {
+		t.Fatalf("previewScrollY = %d, want bottom %d", got.previewScrollY, got.previewMaxScrollY())
+	}
+}
+
+func TestPreviewBracketScrollChangesPreviewOffset(t *testing.T) {
+	m := initialModel()
+	m.width = 120
+	m.height = 12
+	m.preview = "one\ntwo\nthree\nfour\nfive"
+
+	updated, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Text: "]", Code: ']'}))
+	got := updated.(Model)
+	if got.previewScrollY != 1 {
+		t.Fatalf("previewScrollY after ] = %d, want 1", got.previewScrollY)
+	}
+
+	updated, _ = got.handleKey(tea.KeyPressMsg(tea.Key{Text: "[", Code: '['}))
+	got = updated.(Model)
+	if got.previewScrollY != 0 {
+		t.Fatalf("previewScrollY after [ = %d, want 0", got.previewScrollY)
+	}
+}
+
+func TestPreviewShiftBracketScrollsToTopAndBottom(t *testing.T) {
+	m := initialModel()
+	m.width = 120
+	m.height = 12
+	m.preview = "one\ntwo\nthree\nfour\nfive"
+
+	updated, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Text: "}", Code: ']'}))
+	got := updated.(Model)
+	if got.previewScrollY != got.previewMaxScrollY() {
+		t.Fatalf("previewScrollY after shift+] = %d, want bottom %d", got.previewScrollY, got.previewMaxScrollY())
+	}
+
+	updated, _ = got.handleKey(tea.KeyPressMsg(tea.Key{Text: "{", Code: '['}))
+	got = updated.(Model)
+	if got.previewScrollY != 0 {
+		t.Fatalf("previewScrollY after shift+[ = %d, want 0", got.previewScrollY)
+	}
+}
+
+func TestRenderPreviewContentSlicesVertically(t *testing.T) {
+	got := renderPreviewContent("one\ntwo\nthree", 1, 2, 0, 10)
+	if plain := stripStyleCodes(got); plain != "two       \nthree     " {
+		t.Fatalf("renderPreviewContent = %q, want two/three slice", plain)
+	}
+}
+
+func TestPreviewPaneHeightIsCapped(t *testing.T) {
+	content := renderPreviewContent(strings.Repeat("very-long-preview-line ", 20), 0, 3, 0, 20)
+	pane := previewBorderStyle.
+		Width(22).
+		Height(5).
+		MaxWidth(22).
+		MaxHeight(5).
+		Render(content)
+	if h := lipgloss.Height(pane); h > 5 {
+		t.Fatalf("preview pane height = %d, want <= 5", h)
+	}
+}
+
+func TestPreviewMouseWheelScrollsOnlyInsidePreviewPane(t *testing.T) {
+	m := initialModel()
+	m.width = 120
+	m.height = 12
+	m.sessions = []Session{{Name: "alpha"}}
+	m.markSessionsChanged()
+	m.preview = "one\ntwo\nthree\nfour\nfive\nsix"
+
+	inside := tea.MouseWheelMsg(tea.Mouse{X: m.listOuterWidth() + 1, Y: 1, Button: tea.MouseWheelDown})
+	updated, _ := m.Update(inside)
+	got := updated.(Model)
+	if got.previewScrollY != previewWheelScrollLines {
+		t.Fatalf("previewScrollY after wheel = %d, want %d", got.previewScrollY, previewWheelScrollLines)
+	}
+	scrolled := got.previewScrollY
+
+	outside := tea.MouseWheelMsg(tea.Mouse{X: 0, Y: 1, Button: tea.MouseWheelDown})
+	updated, _ = got.Update(outside)
+	got = updated.(Model)
+	if got.previewScrollY != scrolled {
+		t.Fatalf("previewScrollY changed for wheel outside preview pane: %d", got.previewScrollY)
+	}
+}
+
+func TestViewEnablesMouseMode(t *testing.T) {
+	m := initialModel()
+	m.width = 80
+	m.height = 20
+	view := m.View()
+	if view.MouseMode != tea.MouseModeCellMotion {
+		t.Fatalf("MouseMode = %v, want MouseModeCellMotion", view.MouseMode)
+	}
+}
+
 func TestVisibleSessionsInvalidatesAfterFilterAndSortChange(t *testing.T) {
 	m := initialModel()
 	m.sessions = []Session{
