@@ -23,6 +23,7 @@ archives:
 
 brews:
   - name: zsm
+    # Homebrew tap formulae live under Formula/ instead of the repository root.
     directory: Formula
     repository:
       owner: mdsakalu

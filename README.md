@@ -2,6 +2,8 @@
 
 # zsm
 
+> This fork keeps zsm working with newer zmx releases whose `zmx list` output changed from `session_name`/`started_in` to `name`/`start_dir`.
+
 TUI session manager for [zmx](https://github.com/neurosnap/zmx)
 
 [<img src="https://img.shields.io/github/actions/workflow/status/mdsakalu/zmx-session-manager/ci.yaml?label=build&logo=github" />](https://github.com/mdsakalu/zmx-session-manager/actions)
