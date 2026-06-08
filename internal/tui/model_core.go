@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -61,6 +62,7 @@ func (s sortMode) label() string {
 type sessionsMsg struct {
 	sessions []Session
 	err      error
+	global   bool
 }
 
 type Session = zmx.Session
@@ -80,47 +82,51 @@ type killOneResultMsg struct {
 type waitCheckMsg struct {
 	names   []string
 	attempt int
+	global  bool
 }
 
 type processInfoMsg struct {
-	info map[string]zmx.ProcessInfo
+	info   map[string]zmx.ProcessInfo
+	global bool
 }
 
 type allGoneMsg struct{}
 
 // Commands
 
-func fetchSessionsCmd() tea.Msg {
-	sessions, err := zmx.FetchSessions()
-	return sessionsMsg{sessions: sessions, err: err}
-}
-
-func fetchProcessInfoCmd(sessions []Session) tea.Cmd {
+func fetchSessionsCmd(global bool) tea.Cmd {
 	return func() tea.Msg {
-		return processInfoMsg{info: zmx.FetchProcessInfo(sessions)}
+		sessions, err := zmx.FetchSessionsForScope(global)
+		return sessionsMsg{sessions: sessions, err: err, global: global}
 	}
 }
 
-func fetchPreviewCmd(name string, lines int) tea.Cmd {
+func fetchProcessInfoCmd(sessions []Session, global bool) tea.Cmd {
 	return func() tea.Msg {
-		return previewMsg{name: name, content: zmx.FetchPreview(name, lines)}
+		return processInfoMsg{info: zmx.FetchProcessInfo(sessions), global: global}
 	}
 }
 
-func killOneCmd(name string) tea.Cmd {
+func fetchPreviewCmd(name string, lines int, global bool) tea.Cmd {
 	return func() tea.Msg {
-		err := zmx.KillSession(name)
+		return previewMsg{name: name, content: zmx.FetchPreviewForScope(name, lines, global)}
+	}
+}
+
+func killOneCmd(name string, global bool) tea.Cmd {
+	return func() tea.Msg {
+		err := zmx.KillSessionForScope(name, global)
 		return killOneResultMsg{name: name, err: err}
 	}
 }
 
-func waitForGoneCmd(names []string, attempt int) tea.Cmd {
+func waitForGoneCmd(names []string, attempt int, global bool) tea.Cmd {
 	return func() tea.Msg {
 		if attempt >= 20 {
 			return allGoneMsg{}
 		}
 		time.Sleep(200 * time.Millisecond)
-		sessions, err := zmx.FetchSessions()
+		sessions, err := zmx.FetchSessionsForScope(global)
 		if err != nil {
 			return allGoneMsg{}
 		}
@@ -130,7 +136,7 @@ func waitForGoneCmd(names []string, attempt int) tea.Cmd {
 		}
 		for _, name := range names {
 			if alive[name] {
-				return waitCheckMsg{names: names, attempt: attempt + 1}
+				return waitCheckMsg{names: names, attempt: attempt + 1, global: global}
 			}
 		}
 		return allGoneMsg{}
@@ -155,13 +161,16 @@ type Model struct {
 	sortMode     sortMode
 	sortAsc      bool
 	attachTarget string // non-empty → exec zmx attach after quit
+	attachGlobal bool
 
-	preview        string
-	previewScrollX int
-	previewScrollY int
-	state          state
-	status         string
-	showHelp       bool
+	preview         string
+	previewScrollX  int
+	previewScrollY  int
+	state           state
+	status          string
+	showHelp        bool
+	globalSessions  bool
+	localSessionDir string
 
 	// Kill tracking
 	killQueue     []string
@@ -197,6 +206,7 @@ func initialModel() Model {
 		sortAsc:           true,
 		visibleCacheDirty: true,
 		allMetricsDirty:   true,
+		localSessionDir:   os.Getenv("ZMX_DIR"),
 	}
 }
 
@@ -206,6 +216,10 @@ func NewModel() Model {
 
 func (m Model) AttachTarget() string {
 	return m.attachTarget
+}
+
+func (m Model) AttachGlobal() bool {
+	return m.attachGlobal
 }
 
 // visibleSessions returns sessions matching the current filter, sorted by sortMode.
@@ -384,7 +398,7 @@ func (m *Model) scrollPreviewBottom() {
 }
 
 func (m Model) Init() tea.Cmd {
-	return fetchSessionsCmd
+	return fetchSessionsCmd(false)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -400,6 +414,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case sessionsMsg:
+		if msg.global != m.globalSessions {
+			return m, nil
+		}
 		if msg.err != nil {
 			m.err = msg.err
 			return m, nil
@@ -416,7 +433,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.clampCursor()
-		cmds := []tea.Cmd{fetchProcessInfoCmd(m.sessions)}
+		cmds := []tea.Cmd{fetchProcessInfoCmd(m.sessions, m.globalSessions)}
 		visible := m.visibleSessions()
 		if len(visible) > 0 && m.cursor < len(visible) {
 			cmds = append(cmds, m.previewCmd())
@@ -427,6 +444,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case processInfoMsg:
+		if msg.global != m.globalSessions {
+			return m, nil
+		}
 		updated := false
 		for i := range m.sessions {
 			if info, ok := msg.info[m.sessions[i].Name]; ok {
@@ -459,16 +479,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.killQueue = m.killQueue[1:]
 			m.killNow = next
 			m.addLog(helpStyle.Render("  ⋯ " + next))
-			return m, killOneCmd(next)
+			return m, killOneCmd(next, m.globalSessions)
 		}
 		if len(m.killDoneNames) > 0 {
 			m.addLog(logDimStyle.Render("  Waiting for cleanup..."))
-			return m, waitForGoneCmd(m.killDoneNames, 0)
+			return m, waitForGoneCmd(m.killDoneNames, 0, m.globalSessions)
 		}
 		return m, m.finishKill()
 
 	case waitCheckMsg:
-		return m, waitForGoneCmd(msg.names, msg.attempt)
+		return m, waitForGoneCmd(msg.names, msg.attempt, msg.global)
 
 	case allGoneMsg:
 		return m, m.finishKill()
@@ -521,7 +541,7 @@ func (m *Model) finishKill() tea.Cmd {
 	m.killQueue = nil
 	m.killDoneNames = nil
 	m.killNow = ""
-	return tea.Batch(fetchSessionsCmd, clearStatusAfter(3*time.Second))
+	return tea.Batch(fetchSessionsCmd(m.globalSessions), clearStatusAfter(3*time.Second))
 }
 
 func (m *Model) previewCmd() tea.Cmd {
@@ -529,7 +549,7 @@ func (m *Model) previewCmd() tea.Cmd {
 	if m.cursor >= len(visible) {
 		return nil
 	}
-	return fetchPreviewCmd(visible[m.cursor].Name, previewFetchLines)
+	return fetchPreviewCmd(visible[m.cursor].Name, previewFetchLines, m.globalSessions)
 }
 
 func (m *Model) killTargets() []string {

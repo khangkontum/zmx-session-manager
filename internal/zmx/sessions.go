@@ -29,7 +29,11 @@ func (s Session) DisplayDir() string {
 // FetchSessions parses `zmx list` output into a slice of Session.
 // Format: tab-separated key=value pairs per line.
 func FetchSessions() ([]Session, error) {
-	out, err := runCombinedOutput("zmx", "list")
+	return FetchSessionsForScope(false)
+}
+
+func FetchSessionsForScope(global bool) ([]Session, error) {
+	out, err := combinedOutputForScope(global, "zmx", "list")
 	if err != nil {
 		return nil, fmt.Errorf("zmx list: %w\n%s", err, out)
 	}
@@ -77,7 +81,11 @@ func FetchSessions() ([]Session, error) {
 
 // KillSession runs `zmx kill <name>`.
 func KillSession(name string) error {
-	out, err := combinedOutputWithoutSessionPrefix("zmx", "kill", name)
+	return KillSessionForScope(name, false)
+}
+
+func KillSessionForScope(name string, global bool) error {
+	out, err := combinedOutputForScope(global, "zmx", "kill", name)
 	if err != nil {
 		return fmt.Errorf("zmx kill %s: %w\n%s", name, err, out)
 	}

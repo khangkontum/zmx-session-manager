@@ -15,6 +15,10 @@ import (
 // FetchPreview returns the last `lines` lines of `zmx history <name> --vt`.
 // SGR color sequences are preserved so the preview matches the source session.
 func FetchPreview(name string, lines int) string {
+	return FetchPreviewForScope(name, lines, false)
+}
+
+func FetchPreviewForScope(name string, lines int, global bool) string {
 	if lines < 1 {
 		lines = 1
 	}
@@ -22,7 +26,7 @@ func FetchPreview(name string, lines int) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	cmd := commandWithoutSessionPrefix(ctx, "zmx", "history", name, "--vt")
+	cmd := commandForScope(ctx, global, "zmx", "history", name, "--vt")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Sprintf("(preview unavailable: %v)", err)

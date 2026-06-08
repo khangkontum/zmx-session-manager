@@ -107,6 +107,12 @@ func TestTruncateUnicodeWidth(t *testing.T) {
 	}
 }
 
+func TestTruncateLeft(t *testing.T) {
+	if got := truncateLeft("/very/long/path/to/zmx-session-manager", 16); got != "...ssion-manager" {
+		t.Fatalf("truncateLeft = %q, want suffix with ellipsis", got)
+	}
+}
+
 func TestPreviewMsgIgnoresStaleSession(t *testing.T) {
 	m := initialModel()
 	m.sessions = []Session{{Name: "alpha"}, {Name: "beta"}}
@@ -305,7 +311,7 @@ func TestRenderHelpModalContainsShortcuts(t *testing.T) {
 	m := initialModel()
 	m.width = 100
 	modal := stripStyleCodes(m.renderHelpModal())
-	for _, want := range []string{"Keyboard shortcuts", "↑ ↓ / j k", "space", "x", "Copy attach command", "? / esc"} {
+	for _, want := range []string{"Keyboard shortcuts", "↑ ↓ / j k", "space", "x", "Copy attach command", "Toggle local / global", "? / esc"} {
 		if !strings.Contains(modal, want) {
 			t.Fatalf("help modal missing %q: %q", want, modal)
 		}
@@ -342,6 +348,54 @@ func TestJKNavigateSessionsAndXStartsKill(t *testing.T) {
 	got = updated.(Model)
 	if got.state != stateConfirmKill {
 		t.Fatalf("x should start kill confirmation, state=%v", got.state)
+	}
+}
+
+func TestToggleGlobalSessionsResetsState(t *testing.T) {
+	m := initialModel()
+	m.sessions = []Session{{Name: "alpha"}}
+	m.selected = map[string]bool{"alpha": true}
+	m.filterText = "a"
+	m.cursor = 1
+	m.listOffset = 1
+	m.preview = "preview"
+
+	updated, cmd := m.toggleGlobalSessions()
+	got := updated.(Model)
+	if !got.globalSessions {
+		t.Fatalf("globalSessions should be enabled")
+	}
+	if len(got.sessions) != 0 || len(got.selected) != 0 || got.filterText != "" || got.cursor != 0 || got.listOffset != 0 || got.preview != "" {
+		t.Fatalf("toggle did not reset state: %+v", got)
+	}
+	if cmd == nil {
+		t.Fatalf("toggle should return refresh command")
+	}
+}
+
+func TestScopeLabelUsesLocalSessionDir(t *testing.T) {
+	m := initialModel()
+	m.localSessionDir = "/tmp/zmx/project/that/is/too/long"
+	got := m.scopeLabel()
+	if !strings.HasPrefix(got, "...") || !strings.HasSuffix(got, "/too/long") || lipgloss.Width(got) > scopeLabelMaxWidth {
+		t.Fatalf("scopeLabel = %q, want capped suffix label", got)
+	}
+	m.globalSessions = true
+	if got := m.scopeLabel(); got != "global" {
+		t.Fatalf("global scopeLabel = %q, want global", got)
+	}
+}
+
+func TestAttachTargetKeepsScope(t *testing.T) {
+	m := initialModel()
+	m.sessions = []Session{{Name: "alpha"}}
+	m.globalSessions = true
+	m.markSessionsChanged()
+
+	updated, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	got := updated.(Model)
+	if got.AttachTarget() != "alpha" || !got.AttachGlobal() {
+		t.Fatalf("attach target/scope = %q/%v, want alpha/global", got.AttachTarget(), got.AttachGlobal())
 	}
 }
 

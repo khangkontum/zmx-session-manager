@@ -9,7 +9,6 @@ TUI session manager for [zmx](https://github.com/neurosnap/zmx)
 [<img src="https://img.shields.io/github/actions/workflow/status/mdsakalu/zmx-session-manager/ci.yaml?label=build&logo=github" />](https://github.com/mdsakalu/zmx-session-manager/actions)
 [<img src="https://img.shields.io/github/v/release/mdsakalu/zmx-session-manager?label=release&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BCiAgPHBhdGggZD0iTTIgNyBMNyAyIEgxNCBWOSBMOSAxNCBaIi8%2BCiAgPGNpcmNsZSBjeD0iMTEiIGN5PSI1IiByPSIxIi8%2BCjwvc3ZnPg%3D%3D" />](https://github.com/mdsakalu/zmx-session-manager/releases/latest)
 [<img src="https://img.shields.io/github/downloads/mdsakalu/zmx-session-manager/total?label=downloads&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BCiAgPHBhdGggZD0iTTggMiBWMTAiLz4KICA8cGF0aCBkPSJNNSA3IEw4IDEwIEwxMSA3Ii8%2BCiAgPHBhdGggZD0iTTMgMTMgSDEzIi8%2BCjwvc3ZnPg%3D%3D" />](https://github.com/mdsakalu/zmx-session-manager/releases)
-[<img src="https://img.shields.io/badge/Homebrew-mdsakalu/tap/zsm-orange?logo=homebrew" />](https://github.com/mdsakalu/homebrew-tap)
 [<img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" />](https://go.dev)
 [<img src="https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple" />](https://github.com/mdsakalu/zmx-session-manager)
 [<img src="https://img.shields.io/badge/platform-Linux-lightgrey?logo=linux&logoColor=white" />](https://github.com/mdsakalu/zmx-session-manager)
@@ -22,16 +21,8 @@ TUI session manager for [zmx](https://github.com/neurosnap/zmx)
 
 ## Install
 
-### Homebrew
-
 ```
-brew install mdsakalu/tap/zsm
-```
-
-### Go
-
-```
-go install github.com/mdsakalu/zmx-session-manager@latest
+go install github.com/khangkontum/zmx-session-manager@latest
 ```
 
 ## Requirements
@@ -59,6 +50,7 @@ Press `?` in the app to open the keyboard shortcut help popup.
 | `x` | Kill selected session(s) |
 | `c` | Copy attach command |
 | `s` | Cycle sort mode (name / clients / newest) |
+| `g` | Toggle local / global sessions |
 | `/` | Filter sessions |
 | `[` `]` | Scroll preview |
 | `{` `}` | Jump preview to top / bottom |

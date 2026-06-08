@@ -21,6 +21,8 @@ func previewMaxWidth(raw string) int {
 	return maxW
 }
 
+const scopeLabelMaxWidth = 32
+
 // Layout
 
 func (m Model) mainContentHeight(helpLines int) int {
@@ -100,9 +102,10 @@ func (m Model) View() tea.View {
 	listContent := m.renderList(ch)
 	listContent = clampLines(listContent, ch)
 
-	listTitleLeft := fmt.Sprintf(" zmx sessions (%d) ", len(visible))
+	scopeLabel := m.scopeLabel()
+	listTitleLeft := fmt.Sprintf(" zmx %s (%d) ", scopeLabel, len(visible))
 	if len(visible) != len(m.sessions) {
-		listTitleLeft = fmt.Sprintf(" zmx (%d/%d) ", len(visible), len(m.sessions))
+		listTitleLeft = fmt.Sprintf(" zmx %s (%d/%d) ", scopeLabel, len(visible), len(m.sessions))
 	}
 	sortArrow := "↑"
 	if !m.sortAsc {
@@ -170,6 +173,16 @@ func (m Model) View() tea.View {
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
+}
+
+func (m Model) scopeLabel() string {
+	if m.globalSessions {
+		return "global"
+	}
+	if m.localSessionDir != "" {
+		return truncateLeft(zmx.Session{StartedIn: m.localSessionDir}.DisplayDir(), scopeLabelMaxWidth)
+	}
+	return "default"
 }
 
 func (m Model) renderLog() string {
@@ -304,6 +317,7 @@ func (m Model) renderHelp() string {
 		helpKeyStyle.Render("↑↓/jk") + helpStyle.Render(" nav"),
 		helpKeyStyle.Render("enter") + helpStyle.Render(" attach"),
 		helpKeyStyle.Render("[]") + helpStyle.Render(" preview"),
+		helpKeyStyle.Render("g") + helpStyle.Render(" global"),
 		helpKeyStyle.Render("?") + helpStyle.Render(" help"),
 		helpKeyStyle.Render("q") + helpStyle.Render(" quit"),
 	}
@@ -333,6 +347,7 @@ func (m Model) renderHelpModal() string {
 		{"x", "Kill selected session(s)"},
 		{"c", "Copy attach command"},
 		{"s", "Cycle sort mode"},
+		{"g", "Toggle local / global sessions"},
 		{"/", "Filter sessions"},
 		{"r", "Refresh sessions"},
 		{"? / esc", "Close help"},
@@ -529,6 +544,20 @@ func truncate(s string, maxLen int) string {
 		return runewidth.Truncate(s, maxLen, "")
 	}
 	return runewidth.Truncate(s, maxLen, "...")
+}
+
+func truncateLeft(s string, maxLen int) string {
+	w := ansi.StringWidth(s)
+	if maxLen <= 0 {
+		return ""
+	}
+	if w <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return ansi.Cut(s, w-maxLen, w)
+	}
+	return "..." + ansi.Cut(s, w-(maxLen-3), w)
 }
 
 // highlightMatch renders s with base style, but highlights the first case-insensitive

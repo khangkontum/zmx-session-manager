@@ -214,6 +214,24 @@ func TestFetchSessionsParsesNewZmxListKeys(t *testing.T) {
 	}
 }
 
+func TestFetchSessionsGlobalIgnoresZMXDir(t *testing.T) {
+	orig := deps
+	defer func() { deps = orig }()
+	t.Setenv("ZMX_DIR", "/tmp/local-zmx")
+
+	deps.command = func(name string, arg ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "test -z \"${ZMX_DIR-}\" && printf 'name=demo\\n'")
+	}
+
+	got, err := FetchSessionsForScope(true)
+	if err != nil {
+		t.Fatalf("FetchSessionsForScope error: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "demo" {
+		t.Fatalf("unexpected sessions parsed: %+v", got)
+	}
+}
+
 func TestFetchPreviewIgnoresSessionPrefix(t *testing.T) {
 	orig := deps
 	defer func() { deps = orig }()

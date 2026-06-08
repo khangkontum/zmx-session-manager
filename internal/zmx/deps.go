@@ -26,10 +26,17 @@ func runCombinedOutput(name string, arg ...string) ([]byte, error) {
 }
 
 func withoutSessionPrefixEnv() []string {
+	return scopedEnv(false)
+}
+
+func scopedEnv(global bool) []string {
 	env := os.Environ()
 	filtered := make([]string, 0, len(env))
 	for _, entry := range env {
 		if strings.HasPrefix(entry, "ZMX_SESSION_PREFIX=") {
+			continue
+		}
+		if global && strings.HasPrefix(entry, "ZMX_DIR=") {
 			continue
 		}
 		filtered = append(filtered, entry)
@@ -38,13 +45,21 @@ func withoutSessionPrefixEnv() []string {
 }
 
 func commandWithoutSessionPrefix(ctx context.Context, name string, arg ...string) *exec.Cmd {
+	return commandForScope(ctx, false, name, arg...)
+}
+
+func commandForScope(ctx context.Context, global bool, name string, arg ...string) *exec.Cmd {
 	cmd := deps.commandContext(ctx, name, arg...)
-	cmd.Env = withoutSessionPrefixEnv()
+	cmd.Env = scopedEnv(global)
 	return cmd
 }
 
 func combinedOutputWithoutSessionPrefix(name string, arg ...string) ([]byte, error) {
+	return combinedOutputForScope(false, name, arg...)
+}
+
+func combinedOutputForScope(global bool, name string, arg ...string) ([]byte, error) {
 	cmd := deps.command(name, arg...)
-	cmd.Env = withoutSessionPrefixEnv()
+	cmd.Env = scopedEnv(global)
 	return cmd.CombinedOutput()
 }

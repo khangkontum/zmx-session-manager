@@ -38,16 +38,19 @@ func main() {
 
 	// If the user pressed Enter to attach, exec into zmx attach
 	if m, ok := finalModel.(tui.Model); ok && m.AttachTarget() != "" {
-		env := withoutSessionPrefixEnv()
+		env := withoutSessionPrefixEnv(m.AttachGlobal())
 		syscall.Exec(zmxPath, []string{"zmx", "attach", m.AttachTarget()}, env)
 	}
 }
 
-func withoutSessionPrefixEnv() []string {
+func withoutSessionPrefixEnv(global bool) []string {
 	env := os.Environ()
 	filtered := make([]string, 0, len(env))
 	for _, entry := range env {
 		if strings.HasPrefix(entry, "ZMX_SESSION_PREFIX=") {
+			continue
+		}
+		if global && strings.HasPrefix(entry, "ZMX_DIR=") {
 			continue
 		}
 		filtered = append(filtered, entry)

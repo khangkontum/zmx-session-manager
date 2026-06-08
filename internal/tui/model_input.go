@@ -79,6 +79,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter:
 		if m.cursor < len(visible) {
 			m.attachTarget = visible[m.cursor].Name
+			m.attachGlobal = m.globalSessions
 			return m, tea.Quit
 		}
 
@@ -98,6 +99,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				if m.cursor < len(visible) {
 					name := visible[m.cursor].Name
 					text := fmt.Sprintf("zmx attach %s", name)
+					if m.globalSessions {
+						text = fmt.Sprintf("env -u ZMX_DIR -u ZMX_SESSION_PREFIX %s", text)
+					}
 					if err := zmx.CopyToClipboard(text); err != nil {
 						m.status = fmt.Sprintf("Copy failed: %v", err)
 						m.addLog(confirmStyle.Render(fmt.Sprintf("  ✗ Copy failed: %v", err)))
@@ -108,7 +112,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 					return m, clearStatusAfter(2 * time.Second)
 				}
 			case "r":
-				return m, fetchSessionsCmd
+				return m, fetchSessionsCmd(m.globalSessions)
+			case "g":
+				return m.toggleGlobalSessions()
 			case "/":
 				m.state = stateFilter
 			case "s":
@@ -135,6 +141,26 @@ func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.showHelp = false
 	}
 	return m, nil
+}
+
+func (m Model) toggleGlobalSessions() (tea.Model, tea.Cmd) {
+	m.globalSessions = !m.globalSessions
+	m.sessions = nil
+	m.preview = ""
+	m.previewScrollX = 0
+	m.previewScrollY = 0
+	m.selected = make(map[string]bool)
+	m.filterText = ""
+	m.cursor = 0
+	m.listOffset = 0
+	m.err = nil
+	m.markSessionsChanged()
+	if m.globalSessions {
+		m.status = "Global sessions"
+	} else {
+		m.status = "Sessions: " + m.scopeLabel()
+	}
+	return m, tea.Batch(fetchSessionsCmd(m.globalSessions), clearStatusAfter(2*time.Second))
 }
 
 func (m Model) moveCursor(delta int) (tea.Model, tea.Cmd) {
@@ -271,7 +297,7 @@ func (m Model) handleConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.killQueue = targets[1:]
 		m.killNow = first
 		m.addLog(helpStyle.Render("  ⋯ " + first))
-		return m, killOneCmd(first)
+		return m, killOneCmd(first, m.globalSessions)
 	}
 	if isRune(msg, "n") {
 		m.state = stateNormal
