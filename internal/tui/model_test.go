@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -396,6 +397,61 @@ func TestAttachTargetKeepsScope(t *testing.T) {
 	got := updated.(Model)
 	if got.AttachTarget() != "alpha" || !got.AttachGlobal() {
 		t.Fatalf("attach target/scope = %q/%v, want alpha/global", got.AttachTarget(), got.AttachGlobal())
+	}
+}
+
+func TestNewModelEnablesDefaultAutoRefresh(t *testing.T) {
+	m := NewModel()
+	if m.refreshInterval != 5*time.Second {
+		t.Fatalf("refreshInterval = %s, want 5s", m.refreshInterval)
+	}
+}
+
+func TestInitStartsFetchAndRefreshTimer(t *testing.T) {
+	cmd := NewModel().Init()
+	if cmd == nil {
+		t.Fatalf("Init should return a command")
+	}
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		t.Fatalf("Init command message = %T, want tea.BatchMsg", msg)
+	}
+	if len(batch) != 2 {
+		t.Fatalf("Init command count = %d, want 2", len(batch))
+	}
+}
+
+func TestRefreshTickSchedulesNextTickAndFetch(t *testing.T) {
+	m := initialModel()
+	updated, cmd := m.Update(refreshTickMsg{})
+	if cmd == nil {
+		t.Fatalf("refresh tick should return a command")
+	}
+	if updated.(Model).refreshInterval != defaultRefreshInterval {
+		t.Fatalf("refresh interval should be unchanged")
+	}
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		t.Fatalf("refresh tick command message = %T, want tea.BatchMsg", msg)
+	}
+	if len(batch) != 2 {
+		t.Fatalf("refresh tick command count = %d, want 2", len(batch))
+	}
+}
+
+func TestRefreshTickSkipsFetchWhileKilling(t *testing.T) {
+	m := initialModel()
+	m.refreshInterval = time.Nanosecond
+	m.state = stateKilling
+	_, cmd := m.Update(refreshTickMsg{})
+	if cmd == nil {
+		t.Fatalf("refresh tick should keep scheduling while killing")
+	}
+	msg := cmd()
+	if _, ok := msg.(refreshTickMsg); !ok {
+		t.Fatalf("killing refresh tick message = %T, want refreshTickMsg", msg)
 	}
 }
 

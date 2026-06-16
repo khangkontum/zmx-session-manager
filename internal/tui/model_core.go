@@ -19,6 +19,7 @@ const (
 	logContentHeight        = 4
 	previewFetchLines       = 1000
 	previewWheelScrollLines = 1
+	defaultRefreshInterval  = 5 * time.Second
 )
 
 type state int
@@ -73,6 +74,8 @@ type previewMsg struct {
 }
 
 type statusClearMsg struct{}
+
+type refreshTickMsg struct{}
 
 type killOneResultMsg struct {
 	name string
@@ -149,6 +152,15 @@ func clearStatusAfter(d time.Duration) tea.Cmd {
 	})
 }
 
+func refreshTickCmd(d time.Duration) tea.Cmd {
+	if d <= 0 {
+		return nil
+	}
+	return tea.Tick(d, func(time.Time) tea.Msg {
+		return refreshTickMsg{}
+	})
+}
+
 // Model
 
 type Model struct {
@@ -171,6 +183,7 @@ type Model struct {
 	showHelp        bool
 	globalSessions  bool
 	localSessionDir string
+	refreshInterval time.Duration
 
 	// Kill tracking
 	killQueue     []string
@@ -207,6 +220,7 @@ func initialModel() Model {
 		visibleCacheDirty: true,
 		allMetricsDirty:   true,
 		localSessionDir:   os.Getenv("ZMX_DIR"),
+		refreshInterval:   defaultRefreshInterval,
 	}
 }
 
@@ -398,7 +412,7 @@ func (m *Model) scrollPreviewBottom() {
 }
 
 func (m Model) Init() tea.Cmd {
-	return fetchSessionsCmd(false)
+	return tea.Batch(fetchSessionsCmd(false), refreshTickCmd(m.refreshInterval))
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -440,6 +454,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.preview = ""
 			m.previewScrollY = 0
+		}
+		return m, tea.Batch(cmds...)
+
+	case refreshTickMsg:
+		cmds := []tea.Cmd{refreshTickCmd(m.refreshInterval)}
+		if m.state != stateKilling {
+			cmds = append(cmds, fetchSessionsCmd(m.globalSessions))
 		}
 		return m, tea.Batch(cmds...)
 
